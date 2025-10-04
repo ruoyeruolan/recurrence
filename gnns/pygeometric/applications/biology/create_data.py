@@ -6,6 +6,7 @@
 # @Time       : 2025/10/02 19:35
 # @Description:
 
+from numpy import DataSource
 import torch
 import pandas as pd
 import os.path as osp
@@ -40,7 +41,7 @@ class BiologyDataset(InMemoryDataset):
         self.name = name
         super().__init__(root, transform, pre_transform, pre_filter, force_reload)
 
-        data, self.slices, _, _ = fs.torch_load(self.processed_paths[0])
+        self.data, self.slices, size, cls = fs.torch_load(self.processed_paths[0])
 
     @property
     def raw_dir(self) -> str:  # root/Alzheimer/raw,processed
@@ -121,7 +122,7 @@ class BiologyDataset(InMemoryDataset):
 
         assert isinstance(self._data, Data)
         fs.torch_save(
-            (self._data.to_dict(), self.slices, len(data_list), self.name),
+            (self._data.to_dict(), self.slices, len(data_list), self._data.__class__),
             self.processed_paths[0],
         )
 
@@ -130,5 +131,9 @@ class BiologyDataset(InMemoryDataset):
 
 
 def demo():
-    dataset = BiologyDataset(root="./data/biology/", name="Alzheimer")
+    dataset = BiologyDataset(
+        root="./data/biology/", name="Alzheimer", force_reload=True
+    )
     dataset.raw_dir
+
+    dataset[0]
