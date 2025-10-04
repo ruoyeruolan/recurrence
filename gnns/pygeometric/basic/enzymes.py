@@ -13,11 +13,9 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import TUDataset
 from torch_geometric.nn import GINConv, global_mean_pool
 
-from utils import draw_random_graph_samples
-
-from sklearn.model_selection import train_test_split
-
 from basic.mutag import model_train
+from sklearn.model_selection import train_test_split
+from utils.visiualization import draw_random_graph_samples
 
 
 class GINClassification(nn.Module):

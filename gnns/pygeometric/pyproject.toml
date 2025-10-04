@@ -1,0 +1,12 @@
+[project]
+name = "pygeometric"
+version = "0.1.0"
+description = "Practices project for PyTorch Geometric"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    'torch == 2.6.0',
+    'torch_geometric == 2.6.1',
+    'pandas == 2.3.0',
+]

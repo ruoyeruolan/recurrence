@@ -17,7 +17,7 @@ from torch_geometric.nn import GCNConv, GATConv, GraphConv, global_add_pool
 
 from sklearn.model_selection import train_test_split
 
-from utils import draw_random_graph_samples
+from utils.visiualization import draw_random_graph_samples
 
 
 class GCN(torch.nn.Module):
