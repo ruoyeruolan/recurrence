@@ -40,8 +40,8 @@ class BiologyDataset(InMemoryDataset):
         self.name = name
         super().__init__(root, transform, pre_transform, pre_filter, force_reload)
 
-        data, self.slices, _, data_cls = fs.torch_load(self.processed_paths[0])
-        self.data = data_cls.from_dict(data)
+        data, self.slices, _, cls = fs.torch_load(self.processed_paths[0])
+        self.data = cls.from_dict(data)
 
     @property
     def raw_dir(self) -> str:  # root/Alzheimer/raw,processed
