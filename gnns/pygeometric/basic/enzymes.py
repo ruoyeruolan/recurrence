@@ -84,7 +84,7 @@ def model_test(model: GINClassification, loader: DataLoader):
         total = 0
 
         for data in loader:
-            pred, _ = model(data.x, data.edge_index, data.batch)
+            pred = model(data.x, data.edge_index, data.batch)
             pred = pred.argmax(dim=1)
             correct += int((pred == data.y).sum())
             total += data.num_graphs
@@ -103,6 +103,11 @@ def main():
     for epoch in range(1, 101):
         optimizer.zero_grad()
         loss = model_train(model, train_loader, optimizer, criterion)
-        print(f"Epoch: {epoch}, Loss: {loss: .4f}")
+
+        train_acc = model_test(model, train_loader)
+        test_acc = model_test(model, test_loader)
+        print(
+            f"Epoch: {epoch}, Loss: {loss: .4f}, Train Acc: {train_acc: .4f}, Test Acc: {test_acc: .4f}"
+        )
 
     model_test(model, test_loader)

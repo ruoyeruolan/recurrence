@@ -99,6 +99,8 @@ class BiologyDataset(InMemoryDataset):
             torch.from_numpy(expression.to_numpy()).float().unsqueeze(dim=2)
         )  # torch.Size([565, 51, 1])
         diagnosis_tensor = torch.from_numpy(diagnosis["encoder"].to_numpy()).long()
+
+        torch.manual_seed(42)
         positional_encoder = (
             torch.rand((51, 3)).float().expand(x_tensor.shape[0], 51, 3)
         )  # torch.Size([565, 51, 3])
@@ -137,3 +139,10 @@ def demo():
     dataset.raw_dir
 
     dataset[0]
+
+    diagnosis, adj, expression = dataset.read_alzheimer_data()
+    diagnosis = diagnosis.assign(
+        encoder=diagnosis["final_diagnosis"].apply(lambda x: 0 if x == "AD" else 1)
+    )
+
+    diagnosis["encoder"].value_counts()

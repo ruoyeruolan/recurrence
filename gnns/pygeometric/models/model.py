@@ -11,7 +11,7 @@ from typing import Optional
 import torch.nn.functional as F
 
 from torch import Tensor
-from torch_geometric.nn.pool import ASAPooling
+from torch_geometric.nn.pool import ASAPooling, TopKPooling
 from torch.nn import Module, ModuleList, BatchNorm1d, Linear
 
 from torch_geometric.nn import GCNConv, global_mean_pool
@@ -53,6 +53,8 @@ class GCN(Module):
         for bn in self.batchNormals:
             bn.reset_parameters()
 
+        self.lin.reset_parameters()
+
     def forward(self, x: Tensor, edge_index: Tensor, edge_weight: Optional[Tensor]):
         for n in range(self.nlayers):
             x = self.convs[n](x, edge_index, edge_weight)
@@ -86,6 +88,8 @@ class GCNGraph(Module):
         self.gnn_node3 = GCN(hidden, hidden, hidden, nlayers, dropout, embedding=True)
 
         self.asap = ASAPooling(hidden, dropout=dropout, add_self_loops=False)
+        # self.topk1 = TopKPooling(hidden)
+        # self.topk2 = TopKPooling(hidden)
 
         self.lin = Linear(hidden, out_channels)
 
@@ -103,9 +107,13 @@ class GCNGraph(Module):
         batch: Tensor,
     ):
         x = self.gnn_node1(x, edge_index, edge_weight)
-        x, edge_index, edge_weight, batch, _ = self.asap(
-            x, edge_index, edge_weight, batch
-        )
+        (
+            x,
+            edge_index,
+            edge_weight,
+            batch,
+            _,
+        ) = self.asap(x, edge_index, edge_weight, batch)
 
         x = self.gnn_node2(x, edge_index, edge_weight)
         x, edge_index, edge_weight, batch, _ = self.asap(

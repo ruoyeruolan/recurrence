@@ -75,7 +75,7 @@ def model_train(
     criterion: torch.nn.CrossEntropyLoss,
 ):
     model.train()
-    n = 0
+    ngraphs = 0
     loss_ = 0
     for data in loader:
         optimizer.zero_grad()
@@ -83,9 +83,9 @@ def model_train(
         loss = criterion(pred, data.y)
         loss.backward()
         optimizer.step()
-        n += 1
-        loss_ += loss.item()
-    return loss_ / n if n > 0 else 0
+        ngraphs += data.num_graphs
+        loss_ += loss.item() * data.num_graphs
+    return loss_ / ngraphs if ngraphs > 0 else 0
 
 
 def model_test(model: torch.nn.Module, loader: DataLoader):
