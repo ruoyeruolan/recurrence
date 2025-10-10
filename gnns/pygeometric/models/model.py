@@ -11,8 +11,9 @@ from typing import Optional
 import torch.nn.functional as F
 
 from torch import Tensor
-from torch_geometric.nn.pool import ASAPooling, TopKPooling
 from torch.nn import Module, ModuleList, BatchNorm1d, Linear
+
+from torch_geometric.nn.pool import ASAPooling
 
 from torch_geometric.nn import GCNConv, global_mean_pool
 
