@@ -8,14 +8,17 @@
 
 from typing import Optional
 
+from sympy import Line
+import torch
 import torch.nn.functional as F
 
 from torch import Tensor
-from torch.nn import Module, ModuleList, BatchNorm1d, Linear
+from torch.nn import Module, ModuleList, BatchNorm1d, Linear, ModuleDict, Embedding
 
 from torch_geometric.nn.pool import ASAPooling
 
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.data import HeteroData
+from torch_geometric.nn import GCNConv, global_mean_pool, SAGEConv, HeteroConv
 
 
 class GCN(Module):
@@ -125,3 +128,45 @@ class GCNGraph(Module):
         x = global_mean_pool(x, batch=batch)
 
         return self.lin(x)
+
+
+class HeteroLinkPredictor(Module):
+    def __init__(self, data: HeteroData, hidden: int, nlayers: int = 3) -> None:
+        super().__init__()
+
+        self.node_types, self.edge_types = data.node_types, data.edge_types
+
+        self.embedds = ModuleDict()
+        for ntype in self.node_types:
+            if data[ntype].num_features == 0:
+                self.embedds[ntype] = Embedding(data[ntype].num_nodes, 32)
+
+        self.convs = ModuleList()
+        for _ in range(nlayers):
+            conv = HeteroConv(
+                {edge_type: SAGEConv((-1, -1), hidden) for edge_type in self.edge_types}
+            )
+            self.convs.append(conv)
+
+        self.lin = ModuleDict()
+        for ntype in self.node_types:
+            self.lin[ntype] = Linear(hidden, hidden)
+
+    def forward(self, data: HeteroData):
+        x_dict: dict = {}
+
+        for ntyep in self.node_types:
+            if ntyep in data.x_dict and data.x_dict[ntyep] is not None:
+                x_dict = data.x_dict[ntyep]
+            elif ntyep in self.embedds:
+                idx = torch.arange(data[ntyep].num_nodes)
+                x_dict = self.embedds[ntyep](idx)
+            else:
+                pass
+
+        for conv in self.convs:
+            x_dict = conv(x_dict, data.edge_index_dict)
+            x_dict = {key: val.relu() for key, val in x_dict.items()}
+
+        z_dict = {key: self.lin[key](val) for key, val in x_dict.items()}
+        return z_dict
