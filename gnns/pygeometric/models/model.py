@@ -8,7 +8,6 @@
 
 from typing import Optional
 
-from sympy import Line
 import torch
 import torch.nn.functional as F
 

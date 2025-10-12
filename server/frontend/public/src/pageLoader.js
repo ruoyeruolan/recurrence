@@ -1,0 +1,106 @@
+// ...existing code...
+(function () {
+    async function loadPage(cluster = 'default', name = 'index') {
+        try {
+            const metaRes = await fetch(`/api/pages/${encodeURIComponent(cluster)}/${encodeURIComponent(name)}`);
+            if (!metaRes.ok) throw new Error('meta not found');
+            const meta = await metaRes.json();
+            const htmlRes = await fetch(`/html/${meta.file}`);
+            if (!htmlRes.ok) throw new Error('template not found');
+            const html = await htmlRes.text();
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // 把 head 中的 style/link 注入到 document.head（避免样式丢失）
+            const headElems = Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]'));
+            headElems.forEach(el => {
+                if (el.tagName.toLowerCase() === 'link') {
+                    const href = el.getAttribute('href');
+                    if (href && !document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = href;
+                        document.head.appendChild(link);
+                    }
+                } else { // style
+                    const style = document.createElement('style');
+                    style.textContent = el.textContent;
+                    document.head.appendChild(style);
+                }
+            });
+
+            // 提取 script，并把 body 非 script 节点插入容器
+            const scripts = Array.from(doc.querySelectorAll('script'));
+            const container = document.getElementById('app');
+            container.innerHTML = '';
+            Array.from(doc.body.childNodes).forEach(node => {
+                if (node.tagName && node.tagName.toLowerCase() === 'script') return;
+                container.appendChild(document.importNode(node, true));
+            });
+
+            // helper: load external script and preserve type
+            const loadExternalScript = (src, type, attrs = {}) => new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) return setTimeout(resolve, 0);
+                const s = document.createElement('script');
+                if (type) s.type = type;
+                s.src = src;
+                // keep order for classic scripts
+                if (!type || type === 'text/javascript') s.async = false;
+                Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('Failed to load script ' + src));
+                document.body.appendChild(s);
+            });
+
+            // 顺序执行脚本（外部 & 内联）
+            for (const sEl of scripts) {
+                const src = sEl.getAttribute('src');
+                const type = sEl.getAttribute('type');
+                const attrs = {};
+                if (sEl.hasAttribute('defer')) attrs.defer = '';
+                if (src) {
+                    await loadExternalScript(src, type, attrs);
+                } else {
+                    const inline = document.createElement('script');
+                    if (type) inline.type = type;
+                    inline.text = sEl.textContent;
+                    document.body.appendChild(inline);
+                }
+            }
+
+            // 约定初始化入口：优先调用 initPage / initVisualizer
+            if (typeof window.initPage === 'function') {
+                try { window.initPage(meta); } catch (e) { console.error('initPage error', e); }
+            }
+            if (typeof window.initVisualizer === 'function') {
+                try { window.initVisualizer(meta); } catch (e) { console.error('initVisualizer error', e); }
+            }
+
+            history.pushState({ cluster, name }, '', `/page/${cluster}/${name}`);
+        } catch (e) {
+            console.error(e);
+            const el = document.getElementById('app');
+            if (el) el.innerHTML = `<p>Error: ${e.message}</p>`;
+        }
+    }
+
+    window.linkToPage = function (el) {
+        const cluster = el.dataset.cluster;
+        const name = el.dataset.name;
+        loadPage(cluster, name);
+    };
+
+    window.addEventListener('popstate', function (e) {
+        if (e.state) loadPage(e.state.cluster, e.state.name);
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const parts = location.pathname.split('/').filter(Boolean);
+        if (parts[0] === 'page' && parts[1] && parts[2]) {
+            loadPage(parts[1], parts[2]);
+        } else {
+            loadPage('default', 'index');
+        }
+    });
+})();
