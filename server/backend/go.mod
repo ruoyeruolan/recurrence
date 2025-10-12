@@ -1,4 +1,4 @@
-module recurrence/backend/server
+module recurrence/server/backend
 
 go 1.25.2
 

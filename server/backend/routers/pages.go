@@ -32,10 +32,10 @@ func RegisterPage(router *gin.Engine, page string, fname string) {
 
 func RegisterDynamicPages(router *gin.Engine) {
 	router.GET("/", func(ctx *gin.Context) {
-		ctx.Redirect(http.StatusFound, "/page/default/index")
+		ctx.Redirect(http.StatusFound, "/pages/default/index")
 	})
 
-	router.GET("/page/:cluster/:name", func(ctx *gin.Context) {
+	router.GET("/pages/:cluster/:name", func(ctx *gin.Context) {
 		cluster := ctx.Param("cluster")
 		name := ctx.Param("name")
 		fname, ok := pages[cluster][name]

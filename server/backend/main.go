@@ -15,7 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	// "html/template"
-	"recurrence/backend/server/routers"
+	"recurrence/server/backend/routers"
 )
 
 // var templateFS embed.FS //go:embed templates/*.html
