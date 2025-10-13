@@ -12,6 +12,8 @@ import os.path as osp
 import torch
 from torch_geometric.data import download_url, extract_zip, HeteroData
 
+from utils import hetero2networkx, draw_hetero
+
 # 同质图: 节点和边的类型只有一种
 # 异质图: 节点和边至少一个类型不唯一
 
@@ -67,3 +69,8 @@ def create_hetero():
     data.node_types
     data.edge_types
     data.edge_index_dict
+
+    G, node_color_list, color_map, sampled_nodes = hetero2networkx(
+        data, max_nodes_per_type=100
+    )
+    draw_hetero(data, G, node_color_list, color_map, sampled_nodes, figsize=(16, 9))
