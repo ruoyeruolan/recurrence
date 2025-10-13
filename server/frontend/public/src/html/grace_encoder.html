@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>为什么需要 μ 和 log(σ²)？</title>
+    <link rel="stylesheet" href="/src/css/grace_encoder.css">
+    <script src="/src/js/grace_encoder.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 CausalEncoder为什么需要计算μ和log(σ²)？</h1>
+        
+        <div class="grid">
+            <!-- 左侧：理论解释 -->
+            <div class="card">
+                <h2>📚 理论解释</h2>
+                
+                <div class="highlight">
+                    <strong>核心思想：</strong> 我们不是预测一个确定的值，而是预测一个<strong>概率分布</strong>！
+                </div>
+                
+                <h3 style="color: #333; margin-top: 20px;">1️⃣ 确定性输出 vs 概率性输出</h3>
+                <div class="comparison">
+                    <div class="comparison-item deterministic">
+                        <h3>❌ 确定性</h3>
+                        <p><strong>输出：</strong> z = f(h)</p>
+                        <ul>
+                            <li>只有一个固定值</li>
+                            <li>无法表达不确定性</li>
+                            <li>无法采样多样性</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-item probabilistic">
+                        <h3>✅ 概率性</h3>
+                        <p><strong>输出：</strong> z ~ N(μ, σ²)</p>
+                        <ul>
+                            <li>可以采样无限多个值</li>
+                            <li>表达模型的不确定性</li>
+                            <li>支持生成多样化结果</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <h3 style="color: #333; margin-top: 20px;">2️⃣ 高斯分布的两个关键参数</h3>
+                <div class="formula">
+                    N(z | μ, σ²)
+                </div>
+                <ul>
+                    <li><strong>μ (均值)</strong>：分布的中心位置，告诉我们"期望值在哪里"</li>
+                    <li><strong>σ² (方差)</strong>：分布的离散程度，告诉我们"不确定性有多大"</li>
+                </ul>
+                
+                <h3 style="color: #333; margin-top: 20px;">3️⃣ 为什么用 log(σ²) 而不是 σ？</h3>
+                <ul>
+                    <li><strong>数值稳定性</strong>：方差必须为正，直接输出容易违反</li>
+                    <li><strong>范围无限</strong>：log(σ²) ∈ (-∞, +∞)，网络可以自由输出</li>
+                    <li><strong>梯度更好</strong>：对数空间的梯度更均匀</li>
+                </ul>
+                
+                <div class="formula">
+                    σ = exp(0.5 × log(σ²)) = exp(log σ)
+                </div>
+                
+                <h3 style="color: #333; margin-top: 20px;">4️⃣ 实际应用：VAE</h3>
+                <ul>
+                    <li>编码器输出 μ 和 log(σ²)</li>
+                    <li>通过重参数化采样：z = μ + σ × ε</li>
+                    <li>解码器根据 z 重建数据</li>
+                    <li>可以生成新样本：固定μ，改变采样的ε</li>
+                </ul>
+            </div>
+            
+            <!-- 右侧：交互式可视化 -->
+            <div class="card">
+                <h2>🎮 交互式演示</h2>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>
+                            <span>均值 μ (分布中心)</span>
+                            <span class="value" id="muValue">0.0</span>
+                        </label>
+                        <input type="range" id="muSlider" min="-5" max="5" step="0.1" value="0">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            <span>log(σ²) (对数方差)</span>
+                            <span class="value" id="logvarValue">0.0</span>
+                        </label>
+                        <input type="range" id="logvarSlider" min="-3" max="3" step="0.1" value="0">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            <span>标准差 σ = exp(0.5 × log(σ²))</span>
+                            <span class="value" id="sigmaValue">1.0</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button onclick="sampleOnce()">📊 采样一次</button>
+                    <button onclick="sampleMultiple()">🎲 采样100次</button>
+                    <button onclick="clearSamples()">🗑️ 清除采样</button>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+                
+                <div class="samples-display" id="samplesDisplay">
+                    采样结果将显示在这里...
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部：代码示例 -->
+        <div class="card">
+            <h2>💻 PyTorch 代码实现</h2>
+            <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;"><code><span style="color: #66d9ef;">class</span> <span style="color: #a6e22e;">Encoder</span>(nn.Module):
+    <span style="color: #66d9ef;">def</span> <span style="color: #a6e22e;">__init__</span>(self, input_dim, latent_dim):
+        <span style="color: #66d9ef;">super</span>().__init__()
+        self.fc = nn.Linear(input_dim, <span style="color: #ae81ff;">256</span>)
+        <span style="color: #75715e;"># 输出两个参数：μ 和 log(σ²)</span>
+        self.fc_mu = nn.Linear(<span style="color: #ae81ff;">256</span>, latent_dim)      <span style="color: #75715e;"># 均值</span>
+        self.fc_logvar = nn.Linear(<span style="color: #ae81ff;">256</span>, latent_dim)  <span style="color: #75715e;"># 对数方差</span>
+    
+    <span style="color: #66d9ef;">def</span> <span style="color: #a6e22e;">forward</span>(self, x):
+        h = F.relu(self.fc(x))
+        mu = self.fc_mu(h)           <span style="color: #75715e;"># 输出均值</span>
+        logvar = self.fc_logvar(h)   <span style="color: #75715e;"># 输出 log(σ²)</span>
+        <span style="color: #66d9ef;">return</span> mu, logvar
+
+<span style="color: #66d9ef;">def</span> <span style="color: #a6e22e;">reparameterize</span>(mu, logvar):
+    <span style="color: #e6db74;">"""重参数化技巧"""</span>
+    std = torch.exp(<span style="color: #ae81ff;">0.5</span> * logvar)  <span style="color: #75715e;"># σ = exp(0.5 × log(σ²))</span>
+    eps = torch.randn_like(std)     <span style="color: #75715e;"># ε ~ N(0, 1)</span>
+    z = mu + std * eps               <span style="color: #75715e;"># z = μ + σ × ε</span>
+    <span style="color: #66d9ef;">return</span> z</code></pre>
+            
+            <div class="highlight" style="margin-top: 20px;">
+                <strong>关键点：</strong>
+                <ul>
+                    <li>网络输出 <code>mu</code> 和 <code>logvar</code> 两个张量</li>
+                    <li>通过 <code>exp(0.5 * logvar)</code> 转换为标准差</li>
+                    <li>用重参数化技巧采样，保证梯度可以回传</li>
+                    <li>每次采样都会得到不同的 z 值</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

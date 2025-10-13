@@ -15,8 +15,12 @@ import (
 
 var clusters = map[string]map[string]string{
 	"default": {"index": "index.html"},
-	"grace":   {"encoder": "causalencoderscm.html"},
-	"pyg":     {"movie": "visualizerhetero.html"},
+	"grace":   {"encoder": "grace_encoder.html"},
+	"pyg":     {"movie": "movie.html"},
+	// "node":    {"movie": "movie.html"},
+	// "graph":   {"movie": "movie.html"},
+	// "link":    {"movie": "movie.html"},
+	"example": {"example": "examples.html"},
 }
 
 func RegisterAPIRoutes(rg *gin.RouterGroup) {
