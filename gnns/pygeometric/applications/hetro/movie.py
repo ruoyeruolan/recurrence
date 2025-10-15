@@ -10,8 +10,10 @@ import pandas as pd
 import os.path as osp
 
 import torch
+from torch_geometric.transforms import RandomLinkSplit
 from torch_geometric.data import download_url, extract_zip, HeteroData
 
+from compression.zstd import train_dict
 from utils import hetero2networkx, draw_hetero
 
 # 同质图: 节点和边的类型只有一种
@@ -66,11 +68,26 @@ def create_hetero():
     data["user", "rates", "movie"].edge_index = edge_index
     data["movie", "rev_rates", "user"].edge_index = edge_index.flip(0)
 
-    data.node_types
-    data.edge_types
-    data.edge_index_dict
-
-    G, node_color_list, color_map, sampled_nodes = hetero2networkx(
-        data, max_nodes_per_type=100
+    transforms = RandomLinkSplit(
+        num_test=0.2,
+        num_val=0.1,
+        edge_types=data.edge_types[0],
+        rev_edge_types=data.edge_types[1],
+        add_negative_train_samples=True,
+        neg_sampling_ratio=1,
     )
-    draw_hetero(data, G, node_color_list, color_map, sampled_nodes, figsize=(16, 9))
+
+    train_data, val_data, test_data = transforms(data)
+    # data.node_types
+    # data.edge_types
+    # data.edge_index_dict
+
+    # G, node_color_list, color_map, sampled_nodes = hetero2networkx(
+    #     data, max_nodes_per_type=100
+    # )
+    # draw_hetero(data, G, node_color_list, color_map, sampled_nodes, figsize=(16, 9))
+    return data, train_data, val_data, test_data
+
+
+def main():
+    pass

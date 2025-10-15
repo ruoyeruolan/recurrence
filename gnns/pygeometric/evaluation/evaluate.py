@@ -7,10 +7,15 @@
 # @Description:
 
 from tqdm.auto import tqdm
+from typing import Tuple
 
 import torch
 from torch.nn import Module
 from torch_geometric.loader import DataLoader
+
+from torch_geometric.data import HeteroData
+
+from sklearn.metrics import roc_auc_score
 
 
 def evaluate(model: Module, loader: DataLoader):
@@ -36,3 +41,24 @@ def evaluate(model: Module, loader: DataLoader):
             correct += (pred == data.y).sum()
             ngrphas += data.num_graphs
     return int(correct) / ngrphas if ngrphas > 0 else 0.0
+
+
+def evaluate_hetero(
+    model: Module,
+    data: HeteroData,
+    edge_type: Tuple[str, str, str],
+    decoder,
+):
+    model.eval()
+
+    src, _, dst = edge_type
+    z_dict = model(data)
+    logits = decoder(z_dict[src], z_dict[dst], data.edge_label_index)
+    probs = torch.nn.Sigmoid()(logits)
+
+    pred = (probs > 0.5).float()
+    labels = data[edge_type].edge_label
+
+    acc = (pred == labels).mean()
+    auc = roc_auc_score(labels, pred)
+    return acc, auc

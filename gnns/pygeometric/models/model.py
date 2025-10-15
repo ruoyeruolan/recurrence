@@ -169,3 +169,9 @@ class HeteroLinkPredictor(Module):
 
         z_dict = {key: self.lin[key](val) for key, val in x_dict.items()}
         return z_dict
+
+
+def decoder(z_src, z_dst, edge_label_index):
+    src, dst = edge_label_index
+    z_src_embeds, z_dst_embeds = z_src[src], z_dst[dst]
+    return (z_src_embeds * z_dst_embeds).sum(dim=-1)
