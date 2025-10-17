@@ -15,6 +15,8 @@ from matplotlib.lines import Line2D
 
 from torch_geometric.data import HeteroData
 
+from sklearn.metrics import roc_curve, roc_auc_score
+
 
 def draw_random_graph_samples(
     dataset,
@@ -170,4 +172,17 @@ def draw_hetero(data, G, node_color_list, color_map, sampled_nodes, figsize=(4, 
 
     ax.axis("off")
     plt.tight_layout()
+    plt.show()
+
+
+def plot_roc_curve(labels, probs):
+    auc = roc_auc_score(labels, probs)
+    fpr, tpr, thresholds = roc_curve(labels, probs)
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, label=f"ROC curve (AUC = {auc: .4f})")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC Curve")
+    plt.legend()
+    plt.grid(True)
     plt.show()

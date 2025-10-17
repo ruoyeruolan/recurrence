@@ -9,11 +9,15 @@
 import torch
 
 from tqdm.auto import tqdm
+from typing import Tuple
 
+from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.nn.modules.loss import _Loss
 from torch_geometric.loader import DataLoader
+
+from torch_geometric.data import HeteroData
 
 
 def train(
@@ -46,3 +50,23 @@ def train(
         ngraphs += data.num_graphs
         total_loss += loss.item() * data.num_graphs
     return total_loss / ngraphs if ngraphs > 0 else 0.0
+
+
+def train_hetero(
+    model: Module,
+    data: HeteroData,
+    edge_type: Tuple[str, str, str],
+    decoder,
+    optimizer: Optimizer,
+    criterion: _Loss,
+):
+    model.train()
+    src, _, dst = edge_type
+    labels = data[edge_type].edge_label
+    optimizer.zero_grad()
+    z_dict = model(data)
+    logits = decoder(z_dict[src], z_dict[dst], data.edge_label_index)
+    loss: Tensor = criterion(logits, labels)
+    loss.backward()
+    optimizer.step()
+    return loss.item()
