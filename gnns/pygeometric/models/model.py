@@ -6,7 +6,7 @@
 # @Time       : 2025/10/04 21:20
 # @Description:
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -17,7 +17,13 @@ from torch.nn import Module, ModuleList, BatchNorm1d, Linear, ModuleDict, Embedd
 from torch_geometric.nn.pool import ASAPooling
 
 from torch_geometric.data import HeteroData
-from torch_geometric.nn import GCNConv, global_mean_pool, SAGEConv, HeteroConv
+from torch_geometric.nn import (
+    GCNConv,
+    global_mean_pool,
+    SAGEConv,
+    HeteroConv,
+    to_hetero,
+)
 
 
 class GCN(Module):
@@ -129,7 +135,7 @@ class GCNGraph(Module):
         return self.lin(x)
 
 
-class HeteroLinkPredictor(Module):
+class HeteroLinkPredictor_(Module):
     def __init__(self, data: HeteroData, hidden: int, nlayers: int = 3) -> None:
         super().__init__()
 
@@ -169,3 +175,63 @@ class HeteroLinkPredictor(Module):
 
         z_dict = {key: self.lin[key](val) for key, val in x_dict.items()}
         return z_dict
+
+
+class GNN(Module):
+    def __init__(self, hidden: int = 64) -> None:
+        super().__init__()
+
+        self.conv1 = SAGEConv(hidden, hidden)
+        self.conv2 = SAGEConv(hidden, hidden)
+
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor):
+        x = self.conv1(x, edge_index)
+        x = x.relu()
+
+        x = self.conv2(x, edge_index)
+        return x
+
+
+class Decoder(torch.nn.Module):
+    def __init__(
+        self,
+    ) -> None:
+        super().__init__()
+
+    def forward(
+        self,
+        x_user: torch.Tensor,
+        x_movie: torch.Tensor,
+        edge_label_index: torch.Tensor,
+    ):
+        x_user_feat = x_user[edge_label_index[0]]
+        x_movie_feat = x_movie[edge_label_index[1]]
+
+        return (x_user_feat * x_movie_feat).sum(dim=-1)
+
+
+class HeteroLinkPredictor(torch.nn.Module):
+    def __init__(self, data: HeteroData, hidden: int = 64) -> None:
+        super().__init__()
+
+        self.movie_lin = torch.nn.Linear(data["movie"].num_features, hidden)
+        self.user_embed = torch.nn.Embedding(data["user"].num_nodes, hidden)
+        self.movie_embed = torch.nn.Embedding(data["movie"].num_nodes, hidden)
+
+        self.gnn = to_hetero(GNN(hidden), data.metadata())
+
+        self.classification = Decoder()
+
+    def forward(self, data: HeteroData, edge_type: Tuple[str, str, str]):
+        x_dict: dict = {
+            "user": self.user_embed(data["user"].node_id),
+            "movie": self.movie_lin(data["movie"].x)
+            + self.movie_embed(data["movie"].node_id),
+        }
+
+        x_dict: dict = self.gnn(x_dict, data.edge_index_dict)
+
+        pred = self.classification(
+            x_dict["user"], x_dict["movie"], data[edge_type].edeg_label_index
+        )
+        return pred
