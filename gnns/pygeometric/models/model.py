@@ -232,6 +232,6 @@ class HeteroLinkPredictor(torch.nn.Module):
         x_dict: dict = self.gnn(x_dict, data.edge_index_dict)
 
         pred = self.classification(
-            x_dict["user"], x_dict["movie"], data[edge_type].edeg_label_index
+            x_dict["user"], x_dict["movie"], data[edge_type].edge_label_index
         )
         return pred

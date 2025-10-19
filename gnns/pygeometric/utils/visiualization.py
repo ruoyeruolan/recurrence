@@ -175,14 +175,20 @@ def draw_hetero(data, G, node_color_list, color_map, sampled_nodes, figsize=(4, 
     plt.show()
 
 
-def plot_roc_curve(labels, probs):
-    auc = roc_auc_score(labels, probs)
-    fpr, tpr, thresholds = roc_curve(labels, probs)
+def plot_roc_curve(ground_truths, preds, title="ROC Curve"):
+    fpr, tpr, thresholds = roc_curve(ground_truths, preds)
+    auc = roc_auc_score(ground_truths, preds)
+
     plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"ROC curve (AUC = {auc: .4f})")
+    plt.plot(fpr, tpr, label=f"ROC curve (AUC = {auc:.4f})", linewidth=2)
+    plt.plot([0, 1], [0, 1], "k--", label="Random", linewidth=1)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.legend()
-    plt.grid(True)
+    plt.title(title)
+    plt.legend(loc="lower right")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
     plt.show()
+    return
