@@ -40,7 +40,8 @@ def preprocess():
     )
     data: Data = dataset[0]  # type: ignore
     if getattr(data, "x", None) is None:
-        data.x = torch.eye(data.num_nodes, dtype=torch.float)  # type: ignore
+        # data.x = torch.eye(data.num_nodes, dtype=torch.float)  # type: ignore
+        data.x = torch.arange(data.num_nodes, dtype=torch.long)  # type: ignore
     # data.adj_t
     # to_dense_adj(data.adj_t)
     # G = convert.to_networkx(data, to_undirected=True)
@@ -52,16 +53,38 @@ def preprocess():
 
 
 class SAGE(Module):
-    def __init__(self, in_channels: int, hidden: int = 64) -> None:
+    def __init__(self, num_nodes: int, hidden: int = 64) -> None:
+        """
+        Docstring for __init__
+
+        :param self: Description
+        :param in_channels: is the num_nodes, we use the node_embedding as the features,
+        so we should generate the enmbeeding for each node
+        :type in_channels: int
+        :param hidden: Description
+        :type hidden: int
+        """
         super().__init__()
 
-        self.conv1 = SAGEConv(in_channels, hidden)
+        self.node_embedding = torch.nn.Embedding(
+            num_nodes, hidden * 2
+        )  # ogb dataset doese not have the node feature, use node embedding instead
+
+        self.conv1 = SAGEConv(hidden * 2, hidden)
         self.conv2 = SAGEConv(hidden, hidden)
         self.conv3 = SAGEConv(hidden, hidden)
 
         self.logits = DotProductLinkPredictor()
 
-    def forward(self, x: Tensor, edge_index: Tensor, edge_label_index: Tensor):
+    def forward(self, x: Tensor, edge_index: Tensor):
+        """
+        :param x: is not the node features, is the nodes id
+        :type x: Tensor
+        :param edge_index: Description
+        :type edge_index: Tensor
+        """
+        x = self.node_embedding(x)
+
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = F.dropout(x, p=0.5, training=self.training)
@@ -70,8 +93,7 @@ class SAGE(Module):
         x = x.relu()
         x = F.dropout(x, p=0.5, training=self.training)
 
-        x = self.conv3(x, edge_index)
-        return self.logits(x, edge_label_index)
+        return self.conv3(x, edge_index)
 
 
 class DotProductLinkPredictor(Module):
@@ -85,7 +107,7 @@ class DotProductLinkPredictor(Module):
 
 
 def model_train(
-    model: Module,
+    model: SAGE,
     loader: LinkNeighborLoader,
     optimizer: torch.optim.Optimizer,
     device: str = "cpu",
@@ -96,7 +118,8 @@ def model_train(
     for data in tqdm(loader, desc="Train"):
         data = data.to(device)
         optimizer.zero_grad()
-        logits: torch.Tensor = model(data.x, data.edge_index, data.edge_label_index)
+        embedding: torch.Tensor = model(data.x, data.edge_index)
+        logits = model.logits(embedding, data.edge_label_index)
         loss = F.binary_cross_entropy_with_logits(logits, data.edge_label)
         loss.backward()
         optimizer.step()
@@ -120,7 +143,8 @@ def main():
         else "cpu"
     )
 
-    model = SAGE(data.num_features).to(device)
+    if data.num_nodes is not None:
+        model = SAGE(data.num_nodes).to(device)
     optimier = torch.optim.Adam(params=model.parameters(), lr=0.001)
 
     for epoch in range(1, 11):
