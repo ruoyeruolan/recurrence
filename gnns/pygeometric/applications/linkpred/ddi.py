@@ -1,152 +1,25 @@
 # -*- encoding: utf-8 -*-
 # @Introduce  :
-# @File       : ogblddi.py
+# @File       : ddi.py
 # @Author     : ryrl
 # @Email      : ryrl970311@gmail.com
-# @Time       : 2025/10/22 21:29
+# @Time       : 2025/11/14 22:49
 # @Description:
 
 import torch
-import torch.nn.functional as F
-
-from torch import Tensor
-from torch.nn import Module
-from torch_geometric.data import Data
-from torch_geometric.loader import LinkNeighborLoader
-from torch_geometric.transforms import RandomLinkSplit, ToSparseTensor
-from torch_geometric.nn import SAGEConv
-
 from ogb.linkproppred import PygLinkPropPredDataset
-from tqdm.auto import tqdm
-
-
-def get_loader(data, num_neighbors=[30] * 2, batch_size: int = 128):
-    row, col, _ = data.adj_t.t().coo()
-    data.edge_index = torch.stack([row, col], dim=0).contiguous()
-
-    loader = LinkNeighborLoader(
-        data=data,
-        num_neighbors=num_neighbors,
-        edge_label=data.edge_label,
-        edge_label_index=data.edge_label_index,
-        batch_size=batch_size,
-    )
-    return loader
+from torch_geometric.transforms import RandomLinkSplit
 
 
 def preprocess():
-    dataset = PygLinkPropPredDataset(
-        "ogbl-ddi", "./data/ogb", transform=ToSparseTensor()
-    )
-    data: Data = dataset[0]  # type: ignore
-    if getattr(data, "x", None) is None:
-        # data.x = torch.eye(data.num_nodes, dtype=torch.float)  # type: ignore
-        data.x = torch.arange(data.num_nodes, dtype=torch.long)  # type: ignore
-    # data.adj_t
-    # to_dense_adj(data.adj_t)
-    # G = convert.to_networkx(data, to_undirected=True)
-    spliter = RandomLinkSplit(num_test=0.2, num_val=0.1, is_undirected=True)
+    dataset = PygLinkPropPredDataset(name="ogbl-ddi", root="./data/ogb")
+    data = dataset[0]
 
-    train_data, val_data, test_data = spliter(data)
-    # train_data.edge_index = train_data.adj_t.t().coo()
+    data.node_id = torch.arange(data.num_nodes)  # type: ignore
+
+    spliter = RandomLinkSplit(
+        num_val=0.1, num_test=0.2, add_negative_train_samples=True
+    )
+
+    train_data, val_data, test_data = spliter(data=data)
     return data, train_data, val_data, test_data
-
-
-class SAGE(Module):
-    def __init__(self, num_nodes: int, hidden: int = 64) -> None:
-        """
-        Docstring for __init__
-
-        :param self: Description
-        :param in_channels: is the num_nodes, we use the node_embedding as the features,
-        so we should generate the enmbeeding for each node
-        :type in_channels: int
-        :param hidden: Description
-        :type hidden: int
-        """
-        super().__init__()
-
-        self.node_embedding = torch.nn.Embedding(
-            num_nodes, hidden * 2
-        )  # ogb dataset doese not have the node feature, use node embedding instead
-
-        self.conv1 = SAGEConv(hidden * 2, hidden)
-        self.conv2 = SAGEConv(hidden, hidden)
-        self.conv3 = SAGEConv(hidden, hidden)
-
-        self.logits = DotProductLinkPredictor()
-
-    def forward(self, x: Tensor, edge_index: Tensor):
-        """
-        :param x: is not the node features, is the nodes id
-        :type x: Tensor
-        :param edge_index: Description
-        :type edge_index: Tensor
-        """
-        x = self.node_embedding(x)
-
-        x = self.conv1(x, edge_index)
-        x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        x = self.conv2(x, edge_index)
-        x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training)
-
-        return self.conv3(x, edge_index)
-
-
-class DotProductLinkPredictor(Module):
-    def __init__(self) -> None:
-        super().__init__()
-
-    def forward(self, x, edge_label_index):
-        src = x[edge_label_index[0]]
-        dst = x[edge_label_index[1]]
-        return (src * dst).sum(dim=-1)
-
-
-def model_train(
-    model: SAGE,
-    loader: LinkNeighborLoader,
-    optimizer: torch.optim.Optimizer,
-    device: str = "cpu",
-):
-    model.train()
-
-    total_loss = total_links = 0
-    for data in tqdm(loader, desc="Train"):
-        data = data.to(device)
-        optimizer.zero_grad()
-        embedding: torch.Tensor = model(data.x, data.edge_index)
-        logits = model.logits(embedding, data.edge_label_index)
-        loss = F.binary_cross_entropy_with_logits(logits, data.edge_label)
-        loss.backward()
-        optimizer.step()
-
-        total_links += logits.numel()
-        total_loss += loss.item() * logits.numel()
-    return total_loss / total_links
-
-
-def main():
-    data, train_data, val_data, tets_data = preprocess()
-    train_loader = get_loader(train_data)
-    # val_loader = get_loader(val_data)
-    # test_loader = get_loader(tets_data)
-
-    device = (
-        "cuda"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-    )
-
-    if data.num_nodes is not None:
-        model = SAGE(data.num_nodes).to(device)
-    optimier = torch.optim.Adam(params=model.parameters(), lr=0.001)
-
-    for epoch in range(1, 11):
-        loss = model_train(model, train_loader, optimier, device=device)
-        print(f"Epoch: {epoch}, Loss: {loss:.4f}")
