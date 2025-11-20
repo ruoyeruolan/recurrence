@@ -18483,4 +18483,5 @@ Protein_chain_A     3
 [ molecules ]
 ; Compound        #mols
 Protein_chain_A     1
-SOL             12597
+SOL         12589
+CL               8
